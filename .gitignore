@@ -1,0 +1,12 @@
+jobs/slurm-*.out
+jobs/logs/*.log
+jobs/logs/*.err
+PDEBench/pdebench/data_gen/**/outputs/
+PDEBench/pdebench/data_download/
+*.log
+*.err
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.env
