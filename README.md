@@ -4,14 +4,14 @@ Este repositório contém o código, os scripts de submissão e as ferramentas d
 
 O estudo foca na mitigação de gargalos de Entrada/Saída (I/O) no treinamento de Redes Neurais Operatórias (FNO) e U-Net, utilizando o benchmark [PDEBench](https://github.com/pdebench/PDEBench) em ambientes de Computação de Alto Desempenho (HPC).
 
-## ⚠️ Aviso sobre o PDEBench e Modificações
+## Aviso sobre o PDEBench e Modificações
 Este repositório inclui uma versão local do **PDEBench**. 
 * **Dependências Nativas:** Para informações detalhadas sobre as dependências originais da física e matemática do benchmark, consulte a [documentação oficial do PDEBench](https://github.com/pdebench/PDEBench).
 * **Modificações Realizadas:** O código do PDEBench contido neste repositório **foi modificado** em relação ao original. As alterações foram feitas especificamente nos *data loaders* (`pdebench/models/fno/` e `pdebench/models/unet/`) para:
   1. Instrumentar a fase de treinamento e extrair métricas de execução usando o **Darshan DXT**.
   2. Implementar estratégias de otimização de E/S, incluindo **Alinhamento de Requisições (4KB)**, **MPI-IO Coletivo** e **Buffering**.
 
-## 🛠️ Configuração do Ambiente e Ferramentas
+## Configuração do Ambiente e Ferramentas
 
 Para reproduzir este ambiente e executar os scripts de treinamento e análise, é necessário configurar o ambiente Python e as ferramentas de HPC.
 
@@ -35,7 +35,7 @@ O monitoramento de E/S e a geração de recomendações dependem do **Darshan** 
    conda activate nome_do_ambiente
    ```
 
-## 📂 Estrutura de Scripts e Execução
+## Estrutura de Scripts e Execução
 
 O fluxo de trabalho deste repositório é dividido em execução no cluster (Slurm) e processamento de logs. Abaixo está a descrição do que cada script principal faz:
 
