@@ -191,7 +191,8 @@ def run_training(
             mode="Unet",
             initial_step=initial_step,
         )
-        pickle.dump(errs, Path.open(model_name + ".pickle", "wb"))
+        with open(model_name + ".pickle", "wb") as f:
+            pickle.dump(errs, f)
 
         return
 

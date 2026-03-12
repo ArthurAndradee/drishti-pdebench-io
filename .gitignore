@@ -10,3 +10,5 @@ __pycache__/
 *.pyo
 .pytest_cache/
 .env
+*.pt
+*.pickle

@@ -6,7 +6,7 @@ import shutil
 # Configuration
 # -------------------------
 DARSHAN_FOLDER = Path(
-    "/home/users/aadsilva/ic/erad-2026/darshan-logs/2026/2/17"
+    "/home/users/aadsilva/ic/erad-2026/darshan-logs/2026/3/2"
 )
 
 OUTPUT_BASE = DARSHAN_FOLDER / "filtered_logs"

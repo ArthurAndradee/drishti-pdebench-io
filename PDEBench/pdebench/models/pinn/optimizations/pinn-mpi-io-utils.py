@@ -14,6 +14,25 @@ import torch
 import yaml
 from torch.utils.data import Dataset
 
+# ==========================================
+# 🚀 MPI-IO Setup
+# ==========================================
+try:
+    from mpi4py import MPI
+    HAS_MPI = True
+except ImportError:
+    HAS_MPI = False
+
+def get_h5_kwargs():
+    """Returns kwargs for h5py.File to enable MPI-IO if available."""
+    kwargs = {"mode": "r"}
+    # Check if mpi4py is installed AND if h5py was built with MPI support
+    if HAS_MPI and h5py.get_config().mpi:
+        kwargs["driver"] = "mpio"
+        kwargs["comm"] = MPI.COMM_WORLD
+    return kwargs
+# ==========================================
+
 
 class PINNDataset1D(Dataset):
     def __init__(self, filename, seed):
@@ -26,7 +45,9 @@ class PINNDataset1D(Dataset):
         # load data file
         root_path = Path("../data").resolve()
         data_path = root_path / filename
-        with h5py.File(data_path, "r") as h5_file:
+        
+        # Apply MPI-IO kwargs
+        with h5py.File(data_path, **get_h5_kwargs()) as h5_file:
             seed_group = h5_file[seed]
 
             # extract config
@@ -120,7 +141,9 @@ class PINNDataset2D(Dataset):
         # load data file
         root_path = Path("../data").resolve()
         data_path = root_path / filename
-        with h5py.File(data_path, "r") as h5_file:
+        
+        # Apply MPI-IO kwargs
+        with h5py.File(data_path, **get_h5_kwargs()) as h5_file:
             seed_group = h5_file[seed]
 
             # extract config
@@ -314,7 +337,9 @@ class PINNDataset1Dpde(Dataset):
 
         # load data file
         data_path = Path(root_path) / filename
-        h5_file = h5py.File(data_path, "r")
+        
+        # Apply MPI-IO kwargs
+        h5_file = h5py.File(data_path, **get_h5_kwargs())
 
         # build input data from individual dimensions
         # dim x = [x]
@@ -440,7 +465,9 @@ class PINNDataset2Dpde(Dataset):
 
         # load data file
         data_path = Path(root_path) / filename
-        h5_file = h5py.File(data_path, "r")
+        
+        # Apply MPI-IO kwargs
+        h5_file = h5py.File(data_path, **get_h5_kwargs())
 
         # build input data from individual dimensions
         # dim x = [x]
@@ -576,7 +603,9 @@ class PINNDataset3Dpde(Dataset):
 
         # load data file
         data_path = Path(root_path) / filename
-        h5_file = h5py.File(data_path, "r")
+        
+        # Apply MPI-IO kwargs
+        h5_file = h5py.File(data_path, **get_h5_kwargs())
 
         # build input data from individual dimensions
         # dim x = [x]

@@ -60,7 +60,8 @@ def debug_paths():
 
 def parse_filename(filepath):
     filename = os.path.basename(filepath)
-    name_no_ext = filename.replace(".pt", "")
+    # Remove any possible extension dynamically (.pt or .pickle)
+    name_no_ext = filename.replace(".pt", "").replace(".pickle", "")
     parts = name_no_ext.split('_')
     
     if len(parts) < 3: return None
@@ -92,12 +93,70 @@ def parse_filename(filepath):
         "run_id": parts[-1]
     }
 
-def evaluate_model(meta):
+def extract_metrics(results):
+    """
+    Safely extracts metrics from either a dictionary or an array.
+    Adapted from analyse_results_forward logic to include FT and Boundary MSEs.
+    """
+    metrics_res = {
+        "MSE": np.nan, "nRMSE": np.nan, "Conservation": np.nan, 
+        "MaxError": np.nan, "Boundary": np.nan, "FT_Low": np.nan, 
+        "FT_Mid": np.nan, "FT_High": np.nan
+    }
+    
+    if isinstance(results, dict):
+        metrics_res["MSE"] = float(results.get("MSE", np.nan))
+        metrics_res["nRMSE"] = float(results.get("RMSE", results.get("Normalized MSE", np.nan)))
+        metrics_res["Conservation"] = float(results.get("Conservation MSE", np.nan))
+        metrics_res["MaxError"] = float(results.get("Max Error", np.nan))
+        metrics_res["Boundary"] = float(results.get("MSE Boundary", np.nan))
+        metrics_res["FT_Low"] = float(results.get("MSE FT Low", np.nan))
+        metrics_res["FT_Mid"] = float(results.get("MSE FT Mid", np.nan))
+        metrics_res["FT_High"] = float(results.get("MSE FT High", np.nan))
+        
+    elif isinstance(results, (list, tuple, np.ndarray)):
+        # Common layout: [MSE, nRMSE, Conservation, MaxError, Boundary, [FT_Low, FT_Mid, FT_High]]
+        metrics_res["MSE"] = float(results[0]) if len(results) > 0 else np.nan
+        metrics_res["nRMSE"] = float(results[1]) if len(results) > 1 else np.nan
+        metrics_res["Conservation"] = float(results[2]) if len(results) > 2 else np.nan
+        metrics_res["MaxError"] = float(results[3]) if len(results) > 3 else np.nan
+        metrics_res["Boundary"] = float(results[4]) if len(results) > 4 else np.nan
+        
+        # In PINN, the 6th element is often an array itself representing FT components
+        if len(results) > 5:
+            if isinstance(results[5], (list, tuple, np.ndarray)) and len(results[5]) >= 3:
+                metrics_res["FT_Low"] = float(results[5][0])
+                metrics_res["FT_Mid"] = float(results[5][1])
+                metrics_res["FT_High"] = float(results[5][2])
+            else:
+                metrics_res["FT_Low"] = float(results[5]) if len(results) > 5 else np.nan
+                metrics_res["FT_Mid"] = float(results[6]) if len(results) > 6 else np.nan
+                metrics_res["FT_High"] = float(results[7]) if len(results) > 7 else np.nan
+
+    print(f"   📊 nRMSE: {metrics_res['nRMSE']:.5f} | MaxErr: {metrics_res['MaxError']:.5f}")
+    return metrics_res
+
+def process_file(meta):
     print(f"----------------------------------------------------------------")
     print(f"📌 PROCESSING: {meta['optimization']} | {meta['model_type']} | {meta['run_id']}")
     print(f"   File: {meta['full_path']}")
     
-    # 1. Find Data
+    # -------------------------------------------------------------
+    # FAST PATH: If the file is already a .pickle (e.g. PINN)
+    # -------------------------------------------------------------
+    if meta['full_path'].endswith('.pickle'):
+        print("   🔍 PINN/Evaluated model detected. Reading .pickle directly...")
+        try:
+            with open(meta['full_path'], "rb") as f:
+                results = pickle.load(f)
+                return extract_metrics(results)
+        except Exception as e:
+            print(f"   ❌ Error reading pickle: {e}")
+            return None
+
+    # -------------------------------------------------------------
+    # INFERENCE PATH: If the file is a .pt (FNO/Unet)
+    # -------------------------------------------------------------
     data_path_full = find_data_file(meta["hdf5_name"])
     if not data_path_full:
         print("   ⚠️  HDF5 not in cache, trying .h5 extension...")
@@ -126,7 +185,6 @@ def evaluate_model(meta):
 
     try:
         shutil.copyfile(meta["full_path"], target_pt_name)
-        # print(f"   📄 Staged model to: {target_pt_name}")
     except IOError as e:
         print(f"   ❌ ERROR copying model file: {e}")
         return None
@@ -153,29 +211,22 @@ def evaluate_model(meta):
     start_time = time.time()
 
     try:
-        print(f"   🚀 Running subprocess (CPU Mode)...")
+        print(f"   🚀 Running inference subprocess (CPU Mode)...")
         result = subprocess.run(cmd, cwd=SCRIPT_DIR, capture_output=True, text=True, env=env)
         elapsed = time.time() - start_time
 
         if result.returncode != 0:
             print(f"   💥 SUBPROCESS FAILED (Exit Code {result.returncode})")
             print(f"   --- STDERR START ---")
-            print(result.stderr[-500:]) # Print last 500 chars of error
+            print(result.stderr[-500:]) 
             print(f"   --- STDERR END ---")
         else:
-            print(f"   ✅ Finished in {elapsed:.2f}s")
+            print(f"   ✅ Finished inference in {elapsed:.2f}s")
             
             if os.path.exists(target_pickle_name):
                 with open(target_pickle_name, "rb") as f:
                     results = pickle.load(f)
-                    if isinstance(results, (list, tuple)) or isinstance(results, np.ndarray):
-                        metrics_res = {
-                            "MSE": float(results[0]) if len(results) > 0 else np.nan,
-                            "nRMSE": float(results[1]) if len(results) > 1 else np.nan,
-                            "Conservation": float(results[2]) if len(results) > 2 else np.nan,
-                            "MaxError": float(results[3]) if len(results) > 3 else np.nan
-                        }
-                        print(f"   📊 nRMSE: {metrics_res['nRMSE']:.5f} | MaxErr: {metrics_res['MaxError']:.5f}")
+                    metrics_res = extract_metrics(results)
             else:
                 print("   ❌ Picke file was NOT generated.")
 
@@ -192,15 +243,18 @@ def main():
     debug_paths()
     build_data_cache()
 
-    print("🔎 Searching for .pt files recursively...")
+    print("🔎 Searching for .pt and .pickle files recursively...")
+    
+    # BUSCA TANTO .PT QUANTO .PICKLE
     pt_files = glob.glob(os.path.join(MODEL_ROOT, "**/*.pt"), recursive=True)
+    pickle_files = glob.glob(os.path.join(MODEL_ROOT, "**/*.pickle"), recursive=True)
     
-    # Sort for deterministic output
-    pt_files.sort()
+    all_files = pt_files + pickle_files
+    all_files.sort() # Força a ordem cronológica/alfabética
     
-    print(f"🔎 Found {len(pt_files)} trained models.")
+    print(f"🔎 Found {len(all_files)} files to evaluate ({len(pt_files)} .pt | {len(pickle_files)} .pickle).")
     
-    if len(pt_files) == 0:
+    if len(all_files) == 0:
         print("❌ No models found. Exiting.")
         return
 
@@ -210,14 +264,14 @@ def main():
     print("🚀 STARTING BATCH EVALUATION")
     print("========================================")
 
-    for i, f in enumerate(pt_files):
-        print(f"\n[{i+1}/{len(pt_files)}]")
+    for i, f in enumerate(all_files):
+        print(f"\n[{i+1}/{len(all_files)}]")
         meta = parse_filename(f)
         if not meta: 
             print(f"⚠️  Skipping unparseable filename: {f}")
             continue
         
-        res = evaluate_model(meta)
+        res = process_file(meta)
         if res:
             row = {
                 "Optimization": meta["optimization"],
@@ -239,8 +293,16 @@ def main():
     print("📊 GENERATING SUMMARIES")
     print("="*60)
 
-    numeric_cols = ["nRMSE", "MaxError", "MSE", "Conservation"]
+    # Expanded to support Fourier Transform metrics typical for PINN 
+    numeric_cols = [
+        "nRMSE", "MaxError", "MSE", "Conservation", 
+        "Boundary", "FT_Low", "FT_Mid", "FT_High"
+    ]
 
+    # Drop strictly null columns if you want cleaner tables, 
+    # but keeping them guarantees structural consistency
+    # df = df.dropna(axis=1, how='all')
+    
     # 1. Detailed Summary
     summary_detailed = df.groupby(["Optimization", "Model", "File"])[numeric_cols].agg(['mean', 'std'])
     summary_detailed.to_csv("Evaluation_Detailed_Per_File.csv")
@@ -250,6 +312,10 @@ def main():
     summary_opt = df.groupby(["Optimization", "Model"])[numeric_cols].agg(['mean', 'std'])
     summary_opt.to_csv("Evaluation_Summary_Per_Optimization.csv")
     print("✅ Saved 'Evaluation_Summary_Per_Optimization.csv'")
+    
+    # 3. Raw Logs Dump 
+    df.to_csv("Evaluation_Raw_Runs.csv", index=False)
+    print("✅ Saved 'Evaluation_Raw_Runs.csv'")
     
     print("\nPreview of Optimization Summary:")
     print(summary_opt)
