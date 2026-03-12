@@ -51,7 +51,7 @@ O fluxo de trabalho deste repositório é dividido em execução no cluster (Slu
 ### 3. Geração de Resultados para o Artigo (Pasta `article/`)
 * **`article/create-graph.py`**: Consome os arquivos `.csv` consolidados e gera as figuras vetoriais em formato PDF (ex: `comparacao-otimizacoes-FNO.pdf`) utilizadas na seção de Resultados do artigo.
 
-## ✒️ Autores e Créditos
+## Autores e Créditos
 
 Este trabalho foi desenvolvido por pesquisadores do **Instituto de Informática** da **Universidade Federal do Rio Grande do Sul (UFRGS)**:
 
